@@ -1,5 +1,7 @@
 ---
 title: 'Project 6: Randomization and Matching'
+author: "Benjamin Fields, Daniel Lobo, Enrique Valencia Lopez"
+date: "4/01/2022"
 output: pdf_document
 ---
 
@@ -27,7 +29,7 @@ library(tidyverse)
 library(MatchIt)
 
 # Load ypsps data
-ypsps <- read_csv('data/ypsps.csv')
+ypsps <- read_csv('ypsps.csv')
 head(ypsps)
 ```
 
@@ -44,12 +46,126 @@ Matching is usually used in observational studies to to approximate random assig
 
 ```{r}
 # Generate a vector that randomly assigns each unit to treatment/control
+set.seed(23456)
+RA<-sample(c(0,1), replace=TRUE, size=nrow(ypsps))
+ypsps<- ypsps %>% mutate(RA = RA, .after = ypsps$college)
 
 # Choose a baseline covariate (use dplyr for this)
+library(dplyr)
+# cov_freq<- ypsps %>% 
+  #  dplyr::count(data = ypsps, parent_OwnHome) %>% 
+   # dplyr::group_by(data = ypsps, RA)      # Failed attempt 1
+      
+# cov_freq
+
+# Freq = ypsps %>% group_by(RA)  %>%
+                   # summarise(count = n(parent_OwnHome))  # Failed attempt 2
+
+Freq = ypsps %>% count(parent_OwnHome, RA, sort = TRUE)  # Success! 
+
+Freq
+
 
 # Visualize the distribution by treatment/control (ggplot)
+library(ggplot2)
+
+Freq_plot <- ggplot(data = Freq, aes(x = RA)) +
+    geom_bar() +
+    ggtitle("Plot of Parent Home Ownership") +
+    xlab("Treatment Assignment") +
+    ylab("Count")
+
+Freq_plot   # Not rendering properly 
+
+Freq_plot2 <- ggplot(Freq, aes(x = RA, y = n)) +
+  geom_bar(
+    stat = "identity", position = position_dodge(0.8),
+    width = 0.7, color = "grey", fill = "grey"
+    ) +
+   ggtitle("Plot of Parent Home Ownership") +
+    xlab("Treatment Assignment") +
+    ylab("Count") 
+
+Freq_plot2 # Why doesn't this show count of 0's in parent_OwnHome? 
+
+Freq_plot3<-ggplot(Freq, aes(x = RA, y = n)) +
+  geom_bar(aes(color = parent_OwnHome, fill = parent_OwnHome), stat = "identity") +
+  geom_text(
+    aes(y = n, label = n, group = RA),
+    color = "white"
+  ) + 
+  ggtitle("Plot of Parent Home Ownership") +
+    xlab("Treatment Assignment") +
+    ylab("Count") 
+
+Freq_plot3 # Need to play with formatting 
 
 # Simulate this 10,000 times (monte carlo simulation - see R Refresher for a hint)
+
+# MC<- function(){
+#  set.seed(23456)
+#  RA<-sample(c(0,1), replace=TRUE, size=nrow(ypsps))
+#  ypsps<- ypsps %>% mutate(RA = RA, .after = ypsps$college)
+#  Freq = ypsps %>% count(parent_OwnHome, RA, sort = TRUE)
+  
+#  for (i in 1:nrow(Freq)){
+#    Parent_OwnHome = Freq[i, "parent_OwnHome"] 
+#    RA = Freq[i, "RA"]
+#    n = Freq[i, "n"]
+#   if(Parent_OwnHome==1 & RA ==0){append(Parent_OwnHome_Control,n)}
+#   if(Parent_OwnHome==1 & RA ==1){append(Parent_OwnHome_Treatment,n)}
+#   if(Parent_OwnHome==0 & RA ==0){append(No_Parent_OwnHome_Control,n)}
+#   if(Parent_OwnHome==0 & RA ==1){append(No_Parent_OwnHome_Treatment,n)}
+  
+#  }
+#  }          # Trying to set up the simulation
+
+Iterations = 10000
+
+Parent_OwnHome_Control = c()
+Parent_OwnHome_Treatment = c()
+No_Parent_OwnHome_Control = c()
+No_Parent_OwnHome_Treatment = c()
+
+for (i in 1:Iterations){
+  RA_array<-sample(c(0,1), replace=TRUE, size=nrow(ypsps)) # Random sample moment 
+  ypsps<- ypsps %>% mutate(RA = RA_array, .after = ypsps$college) 
+  Freq = ypsps %>% count(parent_OwnHome, RA, sort = TRUE) 
+  
+  for (i in 1:nrow(Freq)){
+    Parent_OwnHome = Freq$parent_OwnHome[i] 
+    RA = Freq$RA[i]
+    n = Freq$n[i]
+   if(Parent_OwnHome==1 & RA ==0){Parent_OwnHome_Control=c(Parent_OwnHome_Control,n)}
+   if(Parent_OwnHome==1 & RA ==1){Parent_OwnHome_Treatment=c(Parent_OwnHome_Treatment,n)}
+   if(Parent_OwnHome==0 & RA ==0){No_Parent_OwnHome_Control=c(No_Parent_OwnHome_Control,n)}
+   if(Parent_OwnHome==0 & RA ==1){No_Parent_OwnHome_Treatment=c(No_Parent_OwnHome_Treatment,n)}
+  
+  }
+
+    
+}
+
+# To visualize distribution of simulations 
+No_OwnHome_Control_hist<-hist(No_Parent_OwnHome_Control, col = "lightblue")
+
+OwnHome_Control_hist<-hist(Parent_OwnHome_Control, col = "lightblue")
+
+No_OwnHome_Treatment_hist<-hist(No_Parent_OwnHome_Treatment, col = "lightblue")
+
+OwnHome_Treatment_hist<-hist(Parent_OwnHome_Treatment, col = "lightblue")
+
+par(mfrow=c(1,2))
+OwnHome_Control_hist<-hist(Parent_OwnHome_Control, col = "lightblue")
+OwnHome_Treatment_hist<-hist(Parent_OwnHome_Treatment, col = "lightblue")
+# Home owners are balanced across treatment and control groups after 10,000 simulations, each group following a normal distribution around ~510. 
+
+par(mfrow=c(1,2))
+No_OwnHome_Control_hist<-hist(No_Parent_OwnHome_Control, col = "lightblue")
+No_OwnHome_Treatment_hist<-hist(No_Parent_OwnHome_Treatment, col = "lightblue")
+# Non-home owners are also balanced across treatment and control groups after 10,000 simulations, each group following a normal distribution around ~120.
+
+
 ```
 
 ## Questions
@@ -57,7 +173,7 @@ Matching is usually used in observational studies to to approximate random assig
     \item \textbf{What do you see across your simulations? Why does independence of treatment assignment and baseline covariates not guarantee balance of treatment assignment and baseline covariates?}
 \end{enumerate}
 
-\textbf{Your Answer}: 
+\textbf{Your Answer}: We observe that after 10,000 simulations, on average, parent home owners and parent non-home owners are balanced across our treatment and control groups after random assignment. The normal distribution of home owners for both treatment and control groups centers around 510 home owners. The normal distribution of non-home owners for both treatment and control groups centers around 120. These distribution means approximate the values we observed in our original random assignment to treatment and control groups. Independence of treatment assignment and baseline covariates does not guarantee balance of covariates across treatment groups, however, because randomization balances baseline covariates on average. Imbalance may still occur by random chance, as indicated by the spread of the distribution of values across simulations. Depending on which specific simulation we observe, we may find greater imbalance in our baseline covariates between treatment and control (as was somewhat the case in our original random assignment). 
 
 # Propensity Score Matching
 
@@ -66,10 +182,71 @@ Select covariates that you think best represent the "true" model predicting whet
 
 ```{r}
 # Select covariates that represent the "true" model for selection, fit model
+model_ps<-glm(college ~ student_GPA + student_SchOfficer + student_Gen + student_Race + parent_Employ + parent_HHInc + parent_EducW, family = binomial(), data = ypsps)
+
+# covariates of interest: Student GPA, Student officer in school org, Student gender, Student race, Parent employment status, household income, Parent level of education, (when I tried to include home ownership, I got an error) 
+
+summary(model_ps)
 
 # Plot the balance for the top 10 covariates
+Student_GPA<-ggplot(ypsps, aes(x = student_GPA, fill = factor(RA))) +
+geom_bar() +
+facet_grid(RA~.) +
+labs(title = "Distribution of Student GPAs among Treated and Untreated", fill = "A\n")
+
+Student_GPA
+
+School_Officer<-ggplot(ypsps, aes(x = student_SchOfficer, fill = factor(RA))) +
+geom_bar() +
+facet_grid(RA~.) +
+labs(title = "Distribution of Student Officers in School Orgs among Treated and Untreated", fill = "A\n")
+
+School_Officer
+
+Student_Gender<-ggplot(ypsps, aes(x = student_Gen, fill = factor(RA))) +
+geom_bar() +
+facet_grid(RA~.) +
+labs(title = "Distribution of Student Gender among Treated and Untreated", fill = "A\n")
+
+Student_Gender
+
+Student_Race<-ggplot(ypsps, aes(x = student_Race, fill = factor(RA))) +
+geom_bar() +
+facet_grid(RA~.) +
+labs(title = "Distribution of Student Race among Treated and Untreated", fill = "A\n")
+
+Student_Race
+
+Parent_Employment<-ggplot(ypsps, aes(x = parent_Employ, fill = factor(RA))) +
+geom_bar() +
+facet_grid(RA~.) +
+labs(title = "Distribution of Parent Employment Status among Treated and Untreated", fill = "A\n")
+
+Parent_Employment
+
+Household_Income<-ggplot(ypsps, aes(x = parent_HHInc, fill = factor(RA))) +
+geom_bar() +
+facet_grid(RA~.) +
+labs(title = "Distribution of Household Income among Treated and Untreated", fill = "A\n")
+
+Household_Income
+
+Parent_Education<-ggplot(ypsps, aes(x = parent_EducW, fill = factor(RA))) +
+geom_bar() +
+facet_grid(RA~.) +
+labs(title = "Distribution of Parent Education Level among Treated and Untreated", fill = "A\n")
+
+Parent_Education
 
 # Report the overall balance and the proportion of covariates that meet the balance threshold
+library("MatchIt")
+
+m.out<-matchit(RA ~ student_GPA + student_SchOfficer + student_Gen + student_Race + parent_Employ + parent_HHInc + parent_EducW, data = ypsps, replace = TRUE) # I regressed college attendance on the covariates for the true model. Are we then supposed to regress random assignment on the covariates to assess balance? 
+
+summary(m.out) # I'm not sure I did this right. What is the balance threshold? 
+
+plot(summary(m.out)) # It looks like most of the covariates meet the balance threshold of .10 Absolute Standardized Mean Difference except for Student Race, which is matched above that threshold? But, it looks like our covariates are not balanced because they are spread across the plot instead of stacked in a vertical line? Am I interpreting this correctly? 
+
 ```
 
 ## Simulations
