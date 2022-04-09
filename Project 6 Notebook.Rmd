@@ -241,7 +241,9 @@ Parent_Education
 # Report the overall balance and the proportion of covariates that meet the balance threshold
 library("MatchIt")
 
-m.out<-matchit(RA ~ student_GPA + student_SchOfficer + student_Gen + student_Race + parent_Employ + parent_HHInc + parent_EducW, data = ypsps, replace = TRUE) # I regressed college attendance on the covariates for the true model. Are we then supposed to regress random assignment on the covariates to assess balance? 
+m.out<-matchit(RA ~ student_GPA + student_SchOfficer + student_Gen + student_Race + parent_Employ + parent_HHInc + parent_EducW, data = ypsps,  method = "nearest", distance = "glm", link = "logit", discard = "control",replace = TRUE,) # I regressed college attendance on the covariates for the true model. Are we then supposed to regress random assignment on the covariates to assess balance? 
+
+match_ps_att_data <- match.data(m.out)
 
 summary(m.out) # I'm not sure I did this right. What is the balance threshold? 
 
@@ -263,18 +265,7 @@ Henderson/Chatfield argue that an improperly specified propensity score model ca
 \textbf{Note: There are lots of post-treatment covariates in this dataset (about 50!)! You need to be careful not to include these in the pre-treatment balancing. Many of you are probably used to selecting or dropping columns manually, or positionally. However, you may not always have a convenient arrangement of columns, nor is it fun to type out 50 different column names. Instead see if you can use dplyr 1.0.0 functions to programatically drop post-treatment variables (\href{https://www.tidyverse.org/blog/2020/03/dplyr-1-0-0-select-rename-relocate/}{here} is a useful tutorial).}
 
 ```{r}
-# Remove post-treatment covariates
 
-# Randomly select features
-
-# Simulate random selection of features 10k+ times
-
-# Fit p-score models and save ATTs, proportion of balanced covariates, and mean percent balance improvement
-
-# Plot ATT v. proportion
-
-# 10 random covariate balance plots (hint try gridExtra)
-# Note: ggplot objects are finnicky so ask for help if you're struggling to automatically create them; consider using functions!
 ```
 
 ## Questions
@@ -296,17 +287,73 @@ Henderson/Chatfield propose using genetic matching to learn the best weights for
 
 ```{r}
 # Remove post-treatment covariates
+library(MuMIn)
+library(Matching)
+library(rgenoud)
+library(dplyr)
+library(cobalt)
+##We regress model:
 
-# Randomly select features
+# Remove post-treatment covariates
+##First, we exclude missing data
+ypsps<-ypsps%>% dplyr::select(-colnames(ypsps)[colSums(is.na(ypsps))>0])
+# Remove post-treatment covariates
+##We remove variables with 1973 or 1982
+df<-ypsps %>% dplyr::select(-contains("1973"))
+df2<-df %>% dplyr::select(-contains("1982"))
+##we exclude variables id and college 
+df3<-df2%>%dplyr::select(!"interviewid"& !"college")
+## We will use genetic Matching
+# Create empty vectors to populate ATTs, proportion of balanced covariates, and mean percent balance improvement
+iterations<-16
+ATT.best = rep(NA, iterations)
+balanced.cov.best = rep(NA, iterations)
+balance.improvement.best = rep(NA, iterations)
+ps.model <- paste("college ~", paste(names(cov.rand), collapse=" + ")) ##we get this code from the matching notebook
 
-# Simulate random selection of features 10k+ times
 
-# Fit  models and save ATTs, proportion of balanced covariates, and mean percent balance improvement
+# create vector of 15 random numbers from 1 to 10000
+rand.num <- sample(1:iterations, 15) 
 
+for (i in 1:iterations) {
+  # Randomly select variables
+    cov.rand <- sample(df3, size = sample(1:ncol(df3)), replace=FALSE)    
+  # Fit p-score models
+    best.model <- paste("college ~", paste(names(cov.rand), collapse=" + "))
+   best_matchit <- matchit(formula(ps.model),
+                        data = ypsps, 
+                        method="genetic", ##genetic PSM method. 
+                        estimand = "ATT",
+                        replace = TRUE)
+    
+     best_matchit.sum <- summary(best_matchit)
+  # Save ATTs, proportion of balanced covariates, and mean percent balance improvement
+    best_att_data <- match.data(best_matchit)
+    outcome.model <- paste("student_ppnscal ~ college +", paste(names(cov.rand), collapse=" + "))
+  best_att <- lm(formula(outcome.model), data = best_att_data, weights = weights)
+    best_att_summ <- summary(best_att)
+    balance_table_full <- bal.tab(best_matchit, thresholds = .1)
+    balance_table_full$Balanced.mean.diffs # not including distance, 5 of the 10 meet the balanced threshold
+    ATT.best[i] <- best_att_summ$coefficients["college", "Estimate"]
+    balanced.cov.best[i] <- table(balance_table_full$Balance[-1, "M.Threshold"])["Balanced, <0.1"]/ncol(cov.rand) # remove distance variable 
+    balance.improvement.best[i] <- mean(best_matchit.sum$reduction[-1,1]) # remove distance 
+    
+  # 15 random covariate balance plots
+    if(i %in% rand.num){
+      model_name <- paste0("model_", i)
+        n <-  match(i, rand.num) # get new index for where model # is in list of 10 models to save to list
+        plot(summary(best_matchit, main= paste("Balance plot for model ", i)))
+  }
+}
+# Histogram of ATTs from simulation
+ggplot() + 
+  geom_histogram(aes(x=ATT.best))
 # Plot ATT v. proportion
+ggplot() + 
+geom_point(aes(x=ATT.best, y=balanced.cov.best))
+# add regression line
+##We need to check with the original model. 
 
-# 10 random covariate balance plots (hint try gridExtra)
-# Note: ggplot objects are finnicky so ask for help if you're struggling to automatically create them; consider using functions!
 ```
 
 ```{r}
