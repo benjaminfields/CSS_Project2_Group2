@@ -27,6 +27,11 @@ Otherwise, we also have covariates measured for survey responses to various ques
 # Feel free to load other libraries as you wish
 library(tidyverse)
 library(MatchIt)
+library(MuMIn)
+library(Matching)
+library(rgenoud)
+library(dplyr)
+library(cobalt)
 
 # Load ypsps data
 ypsps <- read_csv('ypsps.csv')
@@ -239,10 +244,10 @@ Henderson/Chatfield argue that an improperly specified propensity score model ca
 
 ```{r}
 # Drop columns with missing values and remove post-treatment covariates
-ypsps <- ypsps %>% select(-colnames(ypsps)[colSums(is.na(ypsps))>0])
+ypsps <- ypsps %>% dplyr::select(-colnames(ypsps)[colSums(is.na(ypsps))>0])
 
 #remove post-treatment covariates
-ptc <- ypsps %>% select(!contains("1973") & !contains("1982") & !"college" & !"interviewid")
+ptc <- ypsps %>% dplyr::select(!contains("1973") & !contains("1982") & !"college" & !"interviewid")
 
 # Create empty vectors to populate ATTs, proportion of balanced covariates, and mean percent balance improvement
 ATT = rep(NA, Iterations)
@@ -325,14 +330,6 @@ Henderson/Chatfield propose using genetic matching to learn the best weights for
 
 ```{r}
 # Remove post-treatment covariates
-library(MuMIn)
-library(Matching)
-library(rgenoud)
-library(dplyr)
-library(cobalt)
-##We regress model:
-
-# Remove post-treatment covariates
 ##First, we exclude missing data
 ypsps<-ypsps%>% dplyr::select(-colnames(ypsps)[colSums(is.na(ypsps))>0])
 # Remove post-treatment covariates
@@ -347,7 +344,6 @@ iterations<-16
 ATT.best = rep(NA, iterations)
 balanced.cov.best = rep(NA, iterations)
 balance.improvement.best = rep(NA, iterations)
-ps.model <- paste("college ~", paste(names(cov.rand), collapse=" + ")) ##we get this code from the matching notebook
 
 
 # create vector of 15 random numbers from 1 to 10000
@@ -394,9 +390,6 @@ geom_point(aes(x=ATT.best, y=balanced.cov.best))
 
 ```
 
-```{r}
-# Visualization for distributions of percent improvement
-```
 
 ## Questions
 
